@@ -1,0 +1,17 @@
+{
+  "name": "ncbca-api",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node server.js",
+    "migrate": "node-pg-migrate up",
+    "migrate:down": "node-pg-migrate down",
+    "import:local": "node import/runImport.js"
+  },
+  "dependencies": {
+    "@fastify/cors": "^11.2.0",
+    "fastify": "^5.6.2",
+    "node-pg-migrate": "^7.9.1",
+    "pg": "^8.16.3"
+  }
+}
