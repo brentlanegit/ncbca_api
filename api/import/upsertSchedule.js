@@ -1,6 +1,6 @@
 export async function upsertSchedule(client, schedule, season) {
-  // Replace schedule snapshot for this season (future games only)
-  await client.query(`DELETE FROM schedule WHERE season = $1`, [season]);
+  // Replace schedule snapshot entirely (future games only)
+  await client.query(`DELETE FROM schedule`);
 
   for (const g of schedule) {
     await client.query(
