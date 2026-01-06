@@ -9,7 +9,7 @@ export default async function playerRoutes(app) {
 
     const res = await q(
       `
-      SELECT pid, first_name, last_name, hgt_in, img_url, class_year, current_tid
+      SELECT pid, first_name, last_name, hgt_in, img_url, class_year, class_year_label, current_tid
       FROM players
       WHERE (first_name || ' ' || last_name) ILIKE $1
          OR last_name ILIKE $1
@@ -41,8 +41,10 @@ export default async function playerRoutes(app) {
         img_url,
         injury,
         class_year,
+        class_year_label,
         college,
-        current_tid
+        current_tid,
+        face
       FROM players
       WHERE pid = $1
       `,
@@ -139,7 +141,7 @@ export default async function playerRoutes(app) {
 
     const res = await q(
       `
-      SELECT pid, first_name, last_name, hgt_in, img_url, class_year, current_tid
+      SELECT pid, first_name, last_name, hgt_in, img_url, class_year, class_year_label, current_tid
       FROM players
       WHERE class_year = $1
       ORDER BY last_name, first_name
