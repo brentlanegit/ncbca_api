@@ -4,7 +4,7 @@ import {
   ButtonStyle,
   StringSelectMenuBuilder,
 } from "discord.js";
-import { renderFaceThumbnail } from "../renderFace.js";
+import { renderFacePngAttachment } from "../renderFace.js";
 
 const HIGH_SCHOOL_LOGO =
   "https://upload.wikimedia.org/wikipedia/en/thumb/5/51/National_Federation_of_State_High_School_Associations_logo.svg/1032px-National_Federation_of_State_High_School_Associations_logo.svg.png";
@@ -43,6 +43,7 @@ function formatTeamLabel(team) {
 
 function isValidEmbedUrl(url) {
   if (typeof url !== "string" || !url.trim()) return false;
+  if (url.startsWith("attachment://")) return true;
   try {
     const parsed = new URL(url);
     return parsed.protocol === "http:" || parsed.protocol === "https:";
@@ -52,12 +53,22 @@ function isValidEmbedUrl(url) {
 }
 
 function formatStatValue(value, digits = 1) {
-  if (value == null || Number.isNaN(Number(value))) return "N/A";
+  if (value == null || Number.isNaN(Number(value))) return null;
   return Number(value).toFixed(digits);
 }
 
+function formatLabeledStat(value, label, digits = 1) {
+  const formatted = formatStatValue(value, digits);
+  return formatted == null ? `N/A ${label}` : `${formatted} ${label}`;
+}
+
+function perGame(value, gp) {
+  if (!gp || value == null) return null;
+  return value / gp;
+}
+
 function computeSplit(made, attempted) {
-  if (typeof made !== "number" || typeof attempted !== "number" || attempted <= 0) return "N/A";
+  if (typeof made !== "number" || typeof attempted !== "number" || attempted <= 0) return null;
   return `${((made / attempted) * 100).toFixed(1)}%`;
 }
 
@@ -115,9 +126,8 @@ async function loadPlayerBundle(apiBaseUrl, pid) {
   return { playerData, seasonsData, rawData, team, teamMap };
 }
 
-function buildPlayerEmbedBio({ playerData, team }) {
+function buildPlayerEmbedBio({ playerData, team, thumbnailUrl }) {
   const { player, rating, stats } = playerData;
-  const faceUrl = renderFaceThumbnail(player.face);
   const authorIcon = team?.img_url;
   const authorName =
     player.current_tid === -2 || player.current_tid === -3
@@ -125,18 +135,13 @@ function buildPlayerEmbedBio({ playerData, team }) {
       : formatTeamLabel(team);
 
   const bioStats = stats?.stats ?? {};
-  const splits = [
-    `FG: ${computeSplit(bioStats.fg, bioStats.fga)}`,
-    `3P: ${computeSplit(bioStats.tp, bioStats.tpa)}`,
-    `FT: ${computeSplit(bioStats.ft, bioStats.fta)}`,
-  ].join(" | ");
-
-  const advanced = [
-    `PER: ${formatStatValue(bioStats.per)}`,
-    `BPM: ${formatStatValue(bioStats.bpm)}`,
-    `WS: ${formatStatValue(bioStats.ws)}`,
-    `VORP: ${formatStatValue(bioStats.vorp)}`,
-  ].join(" | ");
+  const gp = stats?.gp ?? 0;
+  const jerseyNumber = bioStats.jerseyNumber ?? player.jersey_number ?? null;
+  const shootingSplits = [
+    computeSplit(bioStats.fg, bioStats.fga),
+    computeSplit(bioStats.tp, bioStats.tpa),
+    computeSplit(bioStats.ft, bioStats.fta),
+  ];
 
   return {
     embeds: [
@@ -149,11 +154,12 @@ function buildPlayerEmbedBio({ playerData, team }) {
               : authorIcon ?? undefined,
         },
         title: buildPlayerHeader(player, rating),
-        thumbnail: isValidEmbedUrl(faceUrl) ? { url: faceUrl } : undefined,
+        thumbnail: isValidEmbedUrl(thumbnailUrl) ? { url: thumbnailUrl } : undefined,
         fields: [
           {
             name: "Bio",
             value: [
+              `Jersey: ${jerseyNumber ?? "N/A"}`,
               `Height: ${formatHeight(player.hgt_in)}`,
               `Weight: ${formatWeight(player.weight_lbs)}`,
               `Born: ${player.born_year ?? "Unknown"} (${player.born_loc ?? "Unknown"})`,
@@ -163,18 +169,42 @@ function buildPlayerEmbedBio({ playerData, team }) {
             ].join("\n"),
           },
           {
-            name: "Current Season Stats",
+            name: "Current Season (Per Game)",
             value: [
-              `GP: ${stats?.gp ?? "N/A"} | MIN: ${formatStatValue(stats?.min)}`,
-              `PTS: ${stats?.pts ?? "N/A"} | REB: ${stats ? stats.orb + stats.drb : "N/A"} | AST ${
-                stats?.ast ?? "N/A"
-              }`,
-              `STL: ${stats?.stl ?? "N/A"} | BLK: ${stats?.blk ?? "N/A"} | TOV: ${
-                stats?.tov ?? "N/A"
-              }`,
-              splits,
-              advanced,
+              `${stats?.gp ?? "N/A"} GP | ${stats?.gs ?? "N/A"} GS | ${formatLabeledStat(
+                perGame(stats?.min, gp),
+                "MPG",
+                1
+              )}`,
+              [
+                formatLabeledStat(perGame(stats?.pts, gp), "PPG", 1),
+                formatLabeledStat(perGame((stats?.orb ?? 0) + (stats?.drb ?? 0), gp), "RPG", 1),
+                formatLabeledStat(perGame(stats?.ast, gp), "APG", 1),
+                formatLabeledStat(perGame(stats?.stl, gp), "SPG", 1),
+                formatLabeledStat(perGame(stats?.blk, gp), "BPG", 1),
+                formatLabeledStat(perGame(stats?.tov, gp), "TOPG", 1),
+              ].join(" | "),
+              [
+                `${shootingSplits[0] ?? "N/A"} FG%`,
+                `${shootingSplits[1] ?? "N/A"} 3P%`,
+                `${shootingSplits[2] ?? "N/A"} FT%`,
+              ].join(" | "),
             ].join("\n"),
+          },
+          {
+            name: "Advanced",
+            value: [
+              formatLabeledStat(bioStats.per, "PER", 1),
+              formatLabeledStat(bioStats.bpm, "BPM", 1),
+              formatLabeledStat(bioStats.obpm, "OBPM", 1),
+              formatLabeledStat(bioStats.dbpm, "DBPM", 1),
+              formatLabeledStat(bioStats.ws, "WS", 1),
+              formatLabeledStat(bioStats.ws48, "WS/48", 3),
+              formatLabeledStat(bioStats.vorp, "VORP", 1),
+              formatLabeledStat(bioStats.ortg, "ORTG", 1),
+              formatLabeledStat(bioStats.drtg, "DRTG", 1),
+              formatLabeledStat(bioStats.ewa, "EWA", 1),
+            ].join(" | "),
           },
         ],
         footer: { text: `PID ${player.pid}` },
@@ -194,9 +224,26 @@ function buildPlayerEmbedCareer({ playerData, seasonsData, teamMap }) {
     .map((s) => {
       const team = teamMap.get(s.tid);
       const teamLabel = team ? team.abbrev : `T${s.tid}`;
-      return `${s.season} ${teamLabel} — GP ${s.gp} | PTS ${s.pts} | REB ${
-        s.orb + s.drb
-      } | AST ${s.ast}`;
+      const classLabel = buildSeasonClassLabel(player, seasonsData.seasons, s.season);
+      const gp = s.gp ?? 0;
+      const label = classLabel ? `${teamLabel} ${classLabel}` : teamLabel;
+      return `${s.season} ${label} — ${s.gp ?? 0} GP | ${s.gs ?? 0} GS | ${formatLabeledStat(
+        perGame(s.min, gp),
+        "MPG",
+        1
+      )} ${formatLabeledStat(perGame(s.pts, gp), "PPG", 1)} | ${formatLabeledStat(
+        perGame((s.orb ?? 0) + (s.drb ?? 0), gp),
+        "RPG",
+        1
+      )} | ${formatLabeledStat(perGame(s.ast, gp), "APG", 1)} | ${formatLabeledStat(
+        perGame(s.stl, gp),
+        "SPG",
+        1
+      )} | ${formatLabeledStat(perGame(s.blk, gp), "BPG", 1)} | ${formatLabeledStat(
+        perGame(s.tov, gp),
+        "TOPG",
+        1
+      )}`;
     });
 
   const awards = playerData.awards?.length
@@ -211,26 +258,26 @@ function buildPlayerEmbedCareer({ playerData, seasonsData, teamMap }) {
           {
             name: "Career Per Game",
             value: [
-              `PTS: ${formatStatValue(perGame.pts)}`,
-              `REB: ${formatStatValue(perGame.reb)}`,
-              `AST: ${formatStatValue(perGame.ast)}`,
-              `STL: ${formatStatValue(perGame.stl)}`,
-              `BLK: ${formatStatValue(perGame.blk)}`,
+              formatLabeledStat(perGame.pts, "PPG", 1),
+              formatLabeledStat(perGame.reb, "RPG", 1),
+              formatLabeledStat(perGame.ast, "APG", 1),
+              formatLabeledStat(perGame.stl, "SPG", 1),
+              formatLabeledStat(perGame.blk, "BPG", 1),
             ].join(" | "),
           },
           {
             name: "Career Totals",
             value: [
-              `GP: ${totals.gp}`,
-              `PTS: ${totals.pts}`,
-              `REB: ${totals.orb + totals.drb}`,
-              `AST: ${totals.ast}`,
-              `STL: ${totals.stl}`,
-              `BLK: ${totals.blk}`,
+              `${totals.gp} GP`,
+              `${totals.pts} PTS`,
+              `${totals.orb + totals.drb} REB`,
+              `${totals.ast} AST`,
+              `${totals.stl} STL`,
+              `${totals.blk} BLK`,
             ].join(" | "),
           },
           {
-            name: "Season Stats (Most Recent 10)",
+            name: "Season Stats",
             value: seasonLines.length ? seasonLines.join("\n") : "No seasons recorded",
           },
           {
@@ -244,33 +291,15 @@ function buildPlayerEmbedCareer({ playerData, seasonsData, teamMap }) {
   };
 }
 
-function buildRatingsTable(current, previous) {
-  const keys = [
-    "hgt",
-    "stre",
-    "spd",
-    "jmp",
-    "endu",
-    "ins",
-    "dnk",
-    "ft",
-    "fg",
-    "tp",
-    "oiq",
-    "diq",
-    "drb",
-    "pss",
-    "reb",
-  ];
-
+function buildRatingsLines(current, previous, keys) {
   return keys
-    .map((key) => {
+    .map(({ key, label }) => {
       const cur = current?.[key];
       if (typeof cur !== "number") return null;
       const prev = previous?.[key];
       const delta =
         typeof prev === "number" ? `${cur} (${cur - prev >= 0 ? "+" : ""}${cur - prev})` : `${cur}`;
-      return `${key.toUpperCase()}: ${delta}`;
+      return `${label}: ${delta}`;
     })
     .filter(Boolean);
 }
@@ -281,7 +310,27 @@ function buildPlayerEmbedRatings({ playerData, rawData }) {
   const current = ratings[ratings.length - 1]?.ratings ?? ratings[ratings.length - 1];
   const previous = ratings[ratings.length - 2]?.ratings ?? ratings[ratings.length - 2];
   const skills = rating?.skills?.length ? rating.skills.join(", ") : "None";
-  const ratingLines = buildRatingsTable(current, previous);
+  const physical = buildRatingsLines(current, previous, [
+    { key: "hgt", label: "Height" },
+    { key: "stre", label: "Strength" },
+    { key: "spd", label: "Speed" },
+    { key: "jmp", label: "Jumping" },
+    { key: "endu", label: "Endurance" },
+  ]);
+  const shooting = buildRatingsLines(current, previous, [
+    { key: "ins", label: "Inside" },
+    { key: "dnk", label: "Dunks/Layups" },
+    { key: "ft", label: "Free Throws" },
+    { key: "fg", label: "Mid Range" },
+    { key: "tp", label: "Three Pointers" },
+  ]);
+  const skill = buildRatingsLines(current, previous, [
+    { key: "oiq", label: "Offensive IQ" },
+    { key: "diq", label: "Defensive IQ" },
+    { key: "drb", label: "Dribbling" },
+    { key: "pss", label: "Passing" },
+    { key: "reb", label: "Rebounding" },
+  ]);
 
   return {
     embeds: [
@@ -290,8 +339,19 @@ function buildPlayerEmbedRatings({ playerData, rawData }) {
         fields: [
           { name: "Skills", value: skills },
           {
-            name: "Ratings (Current vs Previous)",
-            value: ratingLines.length ? ratingLines.join("\n") : "Ratings not available",
+            name: "Physical (Current vs Last Season)",
+            value: physical.length ? physical.join("\n") : "N/A",
+            inline: true,
+          },
+          {
+            name: "Shooting (Current vs Last Season)",
+            value: shooting.length ? shooting.join("\n") : "N/A",
+            inline: true,
+          },
+          {
+            name: "Skill (Current vs Last Season)",
+            value: skill.length ? skill.join("\n") : "N/A",
+            inline: true,
           },
         ],
         footer: { text: `PID ${player.pid}` },
@@ -317,21 +377,28 @@ function buildPaginationRow(active) {
 
 async function buildPlayerMessage(apiBaseUrl, pid, page) {
   const bundle = await loadPlayerBundle(apiBaseUrl, pid);
+  const faceAttachment = await renderFacePngAttachment(bundle.playerData.player.face);
+  const thumbnailUrl = faceAttachment ? `attachment://${faceAttachment.name}` : null;
+  const files = faceAttachment ? [faceAttachment] : [];
+
   if (page === "career") {
     return {
       ...buildPlayerEmbedCareer(bundle),
       components: [buildPaginationRow(page)],
+      files,
     };
   }
   if (page === "ratings") {
     return {
       ...buildPlayerEmbedRatings(bundle),
       components: [buildPaginationRow(page)],
+      files,
     };
   }
   return {
-    ...buildPlayerEmbedBio(bundle),
+    ...buildPlayerEmbedBio({ ...bundle, thumbnailUrl }),
     components: [buildPaginationRow(page)],
+    files,
   };
 }
 
@@ -472,3 +539,29 @@ const player = {
 };
 
 export default player;
+
+function buildSeasonClassLabel(player, seasons, season) {
+  if (player.current_tid === -2) return "HS";
+  if (player.current_tid === -3) return "GR";
+  if (!player.class_year || !Number.isFinite(player.class_year)) return null;
+
+  const entrySeason = player.class_year + 1;
+  if (!Number.isFinite(entrySeason)) return null;
+
+  const statsBySeason = new Map(seasons.map((s) => [s.season, s]));
+  const entryStats = statsBySeason.get(entrySeason);
+  const redshirtUsed = !entryStats || !entryStats.gp;
+
+  const seasonsElapsed = Math.max(0, season - entrySeason);
+  const classIndex = seasonsElapsed - (redshirtUsed ? 1 : 0);
+  const label = mapClassIndexToLabel(classIndex);
+  if (!label) return null;
+  return redshirtUsed && season >= entrySeason + 1 ? `RS ${label}` : label;
+}
+
+function mapClassIndexToLabel(index) {
+  if (index <= 0) return "FR";
+  if (index === 1) return "SO";
+  if (index === 2) return "JR";
+  return "SR";
+}

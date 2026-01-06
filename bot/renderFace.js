@@ -1,9 +1,11 @@
+import sharp from "sharp";
+
 function safeColor(value, fallback) {
   if (typeof value === "string" && value.trim()) return value;
   return fallback;
 }
 
-export function renderFaceThumbnail(face) {
+function renderFaceSvg(face) {
   if (!face || typeof face !== "object") return null;
 
   const skin = safeColor(face.skinColor, "#f2c9a0");
@@ -11,7 +13,7 @@ export function renderFaceThumbnail(face) {
   const eye = safeColor(face.eyeColor, "#2e2e2e");
   const beard = safeColor(face.beardColor ?? face.hairColor, hair);
 
-  const svg = `
+  return `
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
       <rect width="200" height="200" rx="20" fill="#f7f7f7" />
       <circle cx="100" cy="110" r="60" fill="${skin}" />
@@ -22,6 +24,17 @@ export function renderFaceThumbnail(face) {
       <rect x="65" y="150" width="70" height="12" rx="6" fill="${beard}" opacity="0.4" />
     </svg>
   `;
+}
 
-  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+export async function renderFacePngAttachment(face) {
+  const svg = renderFaceSvg(face);
+  if (!svg) return null;
+
+  try {
+    const buffer = await sharp(Buffer.from(svg)).png().toBuffer();
+    return { attachment: buffer, name: "face.png" };
+  } catch (err) {
+    console.warn("Face render failed, skipping thumbnail:", err);
+    return null;
+  }
 }
