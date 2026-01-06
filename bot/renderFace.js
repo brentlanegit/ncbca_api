@@ -1,9 +1,17 @@
 import sharp from "sharp";
-import { faceToSvgString } from "facesjs";
+import facesjs from "facesjs";
 
 function renderFaceSvg(face) {
   if (!face || typeof face !== "object") return null;
   try {
+    const faceToSvgString =
+      facesjs?.faceToSvgString ??
+      facesjs?.default?.faceToSvgString ??
+      facesjs?.faceToSvg ??
+      facesjs?.default?.faceToSvg;
+    if (typeof faceToSvgString !== "function") {
+      throw new Error("facesjs export faceToSvgString not found");
+    }
     return faceToSvgString(face);
   } catch (err) {
     console.warn("Face SVG render failed:", err);
