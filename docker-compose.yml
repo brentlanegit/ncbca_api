@@ -30,5 +30,20 @@ services:
     depends_on:
       - postgres
 
+  bot:
+    image: node:20
+    container_name: ncbca-bot
+    working_dir: /app/bot
+    volumes:
+      - ./:/app
+    command: bash -c "npm install && npm run dev"
+    environment:
+      DATABASE_URL: postgres://ncbca:ncbca_dev@postgres:5432/ncbca
+      DISCORD_BOT_TOKEN: ${DISCORD_BOT_TOKEN}
+      DISCORD_APPLICATION_ID: ${DISCORD_APPLICATION_ID}
+      DISCORD_GUILD_ID: ${DISCORD_GUILD_ID}
+    depends_on:
+      - postgres
+
 volumes:
   pg_data:
