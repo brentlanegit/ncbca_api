@@ -1,4 +1,5 @@
-import { PermissionsBitField, REST, Routes } from "discord.js";
+import { REST, Routes } from "discord.js";
+import { commandDefinitions } from "./commands/index.js";
 
 const token = process.env.DISCORD_BOT_TOKEN;
 const appId = process.env.DISCORD_APPLICATION_ID;
@@ -8,35 +9,6 @@ if (!token || !appId) {
   console.error("Missing DISCORD_BOT_TOKEN or DISCORD_APPLICATION_ID.");
   process.exit(1);
 }
-
-const commandDefinitions = [
-  {
-    name: "loadexport",
-    description: "Load a BasketballGM export from a URL",
-    default_member_permissions: PermissionsBitField.Flags.ManageWebhooks.toString(),
-    options: [
-      {
-        name: "url",
-        description: "Direct link to the export JSON",
-        type: 3,
-        required: true,
-      },
-    ],
-  },
-  {
-    name: "player",
-    description: "Show a player card",
-    options: [
-      {
-        name: "name",
-        description: "Player name",
-        type: 3,
-        required: true,
-        autocomplete: true,
-      },
-    ],
-  },
-];
 
 const rest = new REST({ version: "10" }).setToken(token);
 
