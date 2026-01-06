@@ -112,6 +112,7 @@ async function loadPlayerBundle(apiBaseUrl, pid) {
   const playerData = await apiGet(apiBaseUrl, `/api/player/${pid}`);
   const seasonsData = await apiGet(apiBaseUrl, `/api/player/${pid}/seasons`);
   const rawData = await apiGet(apiBaseUrl, `/api/player/${pid}/raw`);
+  const metaData = await apiGet(apiBaseUrl, "/api/meta");
   const teams = await apiGet(apiBaseUrl, "/api/teams?includeSystem=true");
   const teamMap = new Map(teams.map((t) => [t.tid, t]));
 
@@ -123,10 +124,10 @@ async function loadPlayerBundle(apiBaseUrl, pid) {
     team = teamMap.get(playerData.player.current_tid) ?? null;
   }
 
-  return { playerData, seasonsData, rawData, team, teamMap };
+  return { playerData, seasonsData, rawData, team, teamMap, metaData };
 }
 
-function buildPlayerEmbedBio({ playerData, team, thumbnailUrl }) {
+function buildPlayerEmbedBio({ playerData, team, thumbnailUrl, seasonsData, metaData }) {
   const { player, rating, stats } = playerData;
   const authorIcon = team?.img_url;
   const authorName =
@@ -134,8 +135,13 @@ function buildPlayerEmbedBio({ playerData, team, thumbnailUrl }) {
       ? "High School"
       : formatTeamLabel(team);
 
-  const bioStats = stats?.stats ?? {};
-  const gp = stats?.gp ?? 0;
+  const currentSeason = metaData?.meta?.season ?? null;
+  const currentSeasonStats = seasonsData?.seasons?.find(
+    (season) => season.season === currentSeason && !season.playoffs
+  );
+  const bioStats = currentSeasonStats?.stats ?? stats?.stats ?? {};
+  const baseStats = currentSeasonStats ?? stats;
+  const gp = baseStats?.gp ?? 0;
   const jerseyNumber = bioStats.jerseyNumber ?? player.jersey_number ?? null;
   const shootingSplits = [
     computeSplit(bioStats.fg, bioStats.fga),
@@ -159,7 +165,7 @@ function buildPlayerEmbedBio({ playerData, team, thumbnailUrl }) {
           {
             name: "Bio",
             value: [
-              `Jersey: ${jerseyNumber ?? "N/A"}`,
+              `Number: ${jerseyNumber ?? "N/A"}`,
               `Height: ${formatHeight(player.hgt_in)}`,
               `Weight: ${formatWeight(player.weight_lbs)}`,
               `Born: ${player.born_year ?? "Unknown"} (${player.born_loc ?? "Unknown"})`,
@@ -169,20 +175,24 @@ function buildPlayerEmbedBio({ playerData, team, thumbnailUrl }) {
             ].join("\n"),
           },
           {
-            name: "Current Season (Per Game)",
+            name: "Current Season",
             value: [
-              `${stats?.gp ?? "N/A"} GP | ${stats?.gs ?? "N/A"} GS | ${formatLabeledStat(
-                perGame(stats?.min, gp),
+              `${baseStats?.gp ?? "N/A"} GP | ${baseStats?.gs ?? "N/A"} GS | ${formatLabeledStat(
+                perGame(baseStats?.min, gp),
                 "MPG",
                 1
               )}`,
               [
-                formatLabeledStat(perGame(stats?.pts, gp), "PPG", 1),
-                formatLabeledStat(perGame((stats?.orb ?? 0) + (stats?.drb ?? 0), gp), "RPG", 1),
-                formatLabeledStat(perGame(stats?.ast, gp), "APG", 1),
-                formatLabeledStat(perGame(stats?.stl, gp), "SPG", 1),
-                formatLabeledStat(perGame(stats?.blk, gp), "BPG", 1),
-                formatLabeledStat(perGame(stats?.tov, gp), "TOPG", 1),
+                formatLabeledStat(perGame(baseStats?.pts, gp), "PPG", 1),
+                formatLabeledStat(
+                  perGame((baseStats?.orb ?? 0) + (baseStats?.drb ?? 0), gp),
+                  "RPG",
+                  1
+                ),
+                formatLabeledStat(perGame(baseStats?.ast, gp), "APG", 1),
+                formatLabeledStat(perGame(baseStats?.stl, gp), "SPG", 1),
+                formatLabeledStat(perGame(baseStats?.blk, gp), "BPG", 1),
+                formatLabeledStat(perGame(baseStats?.tov, gp), "TOPG", 1),
               ].join(" | "),
               [
                 `${shootingSplits[0] ?? "N/A"} FG%`,
@@ -198,8 +208,22 @@ function buildPlayerEmbedBio({ playerData, team, thumbnailUrl }) {
               formatLabeledStat(bioStats.bpm, "BPM", 1),
               formatLabeledStat(bioStats.obpm, "OBPM", 1),
               formatLabeledStat(bioStats.dbpm, "DBPM", 1),
-              formatLabeledStat(bioStats.ws, "WS", 1),
-              formatLabeledStat(bioStats.ws48, "WS/48", 3),
+              formatLabeledStat(bioStats.ows, "OWS", 1),
+              formatLabeledStat(bioStats.dws, "DWS", 1),
+              formatLabeledStat(
+                bioStats.ows != null && bioStats.dws != null
+                  ? bioStats.ows + bioStats.dws
+                  : null,
+                "WS",
+                1
+              ),
+              formatLabeledStat(
+                bioStats.ows != null && bioStats.dws != null && baseStats?.min
+                  ? ((bioStats.ows + bioStats.dws) / baseStats.min) * 48
+                  : null,
+                "WS/48",
+                3
+              ),
               formatLabeledStat(bioStats.vorp, "VORP", 1),
               formatLabeledStat(bioStats.ortg, "ORTG", 1),
               formatLabeledStat(bioStats.drtg, "DRTG", 1),
@@ -213,11 +237,16 @@ function buildPlayerEmbedBio({ playerData, team, thumbnailUrl }) {
   };
 }
 
-function buildPlayerEmbedCareer({ playerData, seasonsData, teamMap }) {
+function buildPlayerEmbedCareer({ playerData, seasonsData, teamMap, team, thumbnailUrl }) {
   const { player, rating } = playerData;
   const seasons = seasonsData.seasons.filter((s) => !s.playoffs);
   const totals = sumSeasonStats(seasons);
   const perGameAverages = perGameTotals(totals);
+  const authorIcon = team?.img_url;
+  const authorName =
+    player.current_tid === -2 || player.current_tid === -3
+      ? "High School"
+      : formatTeamLabel(team);
 
   const seasonLines = seasons
     .slice(0, 10)
@@ -253,7 +282,15 @@ function buildPlayerEmbedCareer({ playerData, seasonsData, teamMap }) {
   return {
     embeds: [
       {
+        author: {
+          name: authorName,
+          icon_url:
+            player.current_tid === -2 || player.current_tid === -3
+              ? HIGH_SCHOOL_LOGO
+              : authorIcon ?? undefined,
+        },
         title: buildPlayerHeader(player, rating),
+        thumbnail: isValidEmbedUrl(thumbnailUrl) ? { url: thumbnailUrl } : undefined,
         fields: [
           {
             name: "Career Per Game",
@@ -304,12 +341,17 @@ function buildRatingsLines(current, previous, keys) {
     .filter(Boolean);
 }
 
-function buildPlayerEmbedRatings({ playerData, rawData }) {
+function buildPlayerEmbedRatings({ playerData, rawData, team, thumbnailUrl }) {
   const { player, rating } = playerData;
   const ratings = rawData.ratings ?? [];
   const current = ratings[ratings.length - 1]?.ratings ?? ratings[ratings.length - 1];
   const previous = ratings[ratings.length - 2]?.ratings ?? ratings[ratings.length - 2];
   const skills = rating?.skills?.length ? rating.skills.join(", ") : "None";
+  const authorIcon = team?.img_url;
+  const authorName =
+    player.current_tid === -2 || player.current_tid === -3
+      ? "High School"
+      : formatTeamLabel(team);
   const physical = buildRatingsLines(current, previous, [
     { key: "hgt", label: "Height" },
     { key: "stre", label: "Strength" },
@@ -335,21 +377,29 @@ function buildPlayerEmbedRatings({ playerData, rawData }) {
   return {
     embeds: [
       {
+        author: {
+          name: authorName,
+          icon_url:
+            player.current_tid === -2 || player.current_tid === -3
+              ? HIGH_SCHOOL_LOGO
+              : authorIcon ?? undefined,
+        },
         title: buildPlayerHeader(player, rating),
+        thumbnail: isValidEmbedUrl(thumbnailUrl) ? { url: thumbnailUrl } : undefined,
         fields: [
           { name: "Skills", value: skills },
           {
-            name: "Physical (Current vs Last Season)",
+            name: "Physical",
             value: physical.length ? physical.join("\n") : "N/A",
             inline: true,
           },
           {
-            name: "Shooting (Current vs Last Season)",
+            name: "Shooting",
             value: shooting.length ? shooting.join("\n") : "N/A",
             inline: true,
           },
           {
-            name: "Skill (Current vs Last Season)",
+            name: "Skill",
             value: skill.length ? skill.join("\n") : "N/A",
             inline: true,
           },
@@ -375,30 +425,30 @@ function buildPaginationRow(active) {
   return new ActionRowBuilder().addComponents(buttons);
 }
 
-async function buildPlayerMessage(apiBaseUrl, pid, page) {
+async function buildPlayerMessage(apiBaseUrl, pid, page, includeFiles) {
   const bundle = await loadPlayerBundle(apiBaseUrl, pid);
   const faceAttachment = await renderFacePngAttachment(bundle.playerData.player.face);
   const thumbnailUrl = faceAttachment ? `attachment://${faceAttachment.name}` : null;
-  const files = faceAttachment ? [faceAttachment] : [];
+  const files = includeFiles && faceAttachment ? [faceAttachment] : [];
 
   if (page === "career") {
     return {
-      ...buildPlayerEmbedCareer(bundle),
+      ...buildPlayerEmbedCareer({ ...bundle, thumbnailUrl }),
       components: [buildPaginationRow(page)],
-      files,
+      ...(files.length ? { files } : {}),
     };
   }
   if (page === "ratings") {
     return {
-      ...buildPlayerEmbedRatings(bundle),
+      ...buildPlayerEmbedRatings({ ...bundle, thumbnailUrl }),
       components: [buildPaginationRow(page)],
-      files,
+      ...(files.length ? { files } : {}),
     };
   }
   return {
     ...buildPlayerEmbedBio({ ...bundle, thumbnailUrl }),
     components: [buildPaginationRow(page)],
-    files,
+    ...(files.length ? { files } : {}),
   };
 }
 
@@ -464,7 +514,7 @@ const player = {
     try {
       if (/^\d+$/.test(nameInput)) {
         try {
-          const message = await buildPlayerMessage(apiBaseUrl, Number(nameInput), "bio");
+          const message = await buildPlayerMessage(apiBaseUrl, Number(nameInput), "bio", true);
           await interaction.editReply(message);
           return;
         } catch (err) {
@@ -482,7 +532,7 @@ const player = {
       const teamMap = new Map(teams.map((t) => [t.tid, t]));
 
       if (matches.length === 1) {
-        const message = await buildPlayerMessage(apiBaseUrl, matches[0].pid, "bio");
+        const message = await buildPlayerMessage(apiBaseUrl, matches[0].pid, "bio", true);
         await interaction.editReply(message);
         return;
       }
@@ -503,7 +553,7 @@ const player = {
 
     await interaction.deferUpdate();
     try {
-      const message = await buildPlayerMessage(apiBaseUrl, pid, "bio");
+      const message = await buildPlayerMessage(apiBaseUrl, pid, "bio", true);
       await interaction.editReply(message);
     } catch (err) {
       console.error("Player select failed:", err);
@@ -526,7 +576,7 @@ const player = {
 
     await interaction.deferUpdate();
     try {
-      const message = await buildPlayerMessage(apiBaseUrl, pidValue, page);
+      const message = await buildPlayerMessage(apiBaseUrl, pidValue, page, false);
       await interaction.editReply(message);
     } catch (err) {
       console.error("Player page switch failed:", err);

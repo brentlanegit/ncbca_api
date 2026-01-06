@@ -8,10 +8,10 @@ function safeColor(value, fallback) {
 function renderFaceSvg(face) {
   if (!face || typeof face !== "object") return null;
 
-  const skin = safeColor(face.skinColor, "#f2c9a0");
-  const hair = safeColor(face.hairColor, "#2f1b0c");
-  const eye = safeColor(face.eyeColor, "#2e2e2e");
-  const beard = safeColor(face.beardColor ?? face.hairColor, hair);
+  const skin = safeColor(face.body?.color, safeColor(face.skinColor, "#f2c9a0"));
+  const hair = safeColor(face.hair?.color, safeColor(face.hairColor, "#2f1b0c"));
+  const eye = safeColor(face.eye?.color, safeColor(face.eyeColor, "#2e2e2e"));
+  const beard = safeColor(face.facialHair?.color, safeColor(face.beardColor ?? face.hairColor, hair));
 
   return `
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
