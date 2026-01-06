@@ -9,6 +9,7 @@
   "dependencies": {
     "@resvg/resvg-js": "^2.6.2",
     "discord.js": "^14.22.1",
-    "facesjs": "^3.0.3"
+    "facesjs": "^3.0.3",
+    "jsdom": "^26.1.0"
   }
 }

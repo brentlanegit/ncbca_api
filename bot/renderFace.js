@@ -1,15 +1,19 @@
 import { Resvg } from "@resvg/resvg-js";
 import { createRequire } from "node:module";
+import { JSDOM } from "jsdom";
 
 const require = createRequire(import.meta.url);
-// facesjs does not export faceToSvgString from the package root; load it directly.
+// facesjs exports display/generate; render via a DOM and extract the SVG string.
 // eslint-disable-next-line @typescript-eslint/no-var-requires
-const faceToSvgString = require("facesjs/build/commonjs/faceToSvgString.js");
+const { display } = require("facesjs");
 
 function renderFaceSvg(face) {
   if (!face || typeof face !== "object") return null;
   try {
-    return faceToSvgString(face);
+    const dom = new JSDOM("<!doctype html><div id=\"face\"></div>");
+    const container = dom.window.document.getElementById("face");
+    display(container, face);
+    return container.innerHTML.trim() || null;
   } catch (err) {
     console.warn("Face SVG render failed:", err);
     return null;
