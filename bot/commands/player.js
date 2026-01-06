@@ -41,6 +41,30 @@ function formatTeamLabel(team) {
   return `${team.region} ${team.name}`;
 }
 
+function resolveDisplayTeam(player, team, teamMap, seasons = []) {
+  if (player.current_tid === -2) {
+    return { name: "High School", icon: HIGH_SCHOOL_LOGO };
+  }
+
+  if (team) {
+    return { name: formatTeamLabel(team), icon: team.img_url ?? undefined };
+  }
+
+  const latestSeason = [...seasons]
+    .filter((season) => !season.playoffs)
+    .sort((a, b) => b.season - a.season)[0];
+  const fallbackTeam = latestSeason ? teamMap.get(latestSeason.tid) : null;
+  if (fallbackTeam) {
+    return { name: formatTeamLabel(fallbackTeam), icon: fallbackTeam.img_url ?? undefined };
+  }
+
+  if (player.current_tid === -3) {
+    return { name: "Graduated", icon: undefined };
+  }
+
+  return { name: "Unknown", icon: undefined };
+}
+
 function isValidEmbedUrl(url) {
   if (typeof url !== "string" || !url.trim()) return false;
   if (url.startsWith("attachment://")) return true;
@@ -127,15 +151,11 @@ async function loadPlayerBundle(apiBaseUrl, pid) {
   return { playerData, seasonsData, rawData, team, teamMap, metaData };
 }
 
-function buildPlayerEmbedBio({ playerData, team, thumbnailUrl, seasonsData, metaData }) {
+function buildPlayerEmbedBio({ playerData, team, thumbnailUrl, seasonsData, metaData, teamMap }) {
   const { player, rating, stats } = playerData;
-  const authorIcon = team?.img_url;
-  const authorName =
-    player.current_tid === -2 || player.current_tid === -3
-      ? "High School"
-      : formatTeamLabel(team);
+  const author = resolveDisplayTeam(player, team, teamMap, seasonsData.seasons);
 
-  const currentSeason = metaData?.meta?.season ?? null;
+  const currentSeason = metaData?.season ?? null;
   const age =
     typeof player.born_year === "number" && typeof currentSeason === "number"
       ? currentSeason - player.born_year
@@ -157,11 +177,8 @@ function buildPlayerEmbedBio({ playerData, team, thumbnailUrl, seasonsData, meta
     embeds: [
       {
         author: {
-          name: authorName,
-          icon_url:
-            player.current_tid === -2 || player.current_tid === -3
-              ? HIGH_SCHOOL_LOGO
-              : authorIcon ?? undefined,
+          name: author.name,
+          icon_url: author.icon,
         },
         title: buildPlayerHeader(player, rating),
         thumbnail: isValidEmbedUrl(thumbnailUrl) ? { url: thumbnailUrl } : undefined,
@@ -253,11 +270,7 @@ function buildPlayerEmbedCareer({ playerData, seasonsData, teamMap, team, thumbn
   const seasons = seasonsData.seasons.filter((s) => !s.playoffs);
   const totals = sumSeasonStats(seasons);
   const perGameAverages = perGameTotals(totals);
-  const authorIcon = team?.img_url;
-  const authorName =
-    player.current_tid === -2 || player.current_tid === -3
-      ? "High School"
-      : formatTeamLabel(team);
+  const author = resolveDisplayTeam(player, team, teamMap, seasonsData.seasons);
 
   const seasonLines = seasons
     .slice(0, 10)
@@ -268,7 +281,7 @@ function buildPlayerEmbedCareer({ playerData, seasonsData, teamMap, team, thumbn
       const gp = s.gp ?? 0;
       const label = classLabel ? `${teamLabel} ${classLabel}` : teamLabel;
       return [
-        `${s.season} ${label} — ${s.gp ?? 0} GP | ${s.gs ?? 0} GS | ${formatLabeledStat(
+        `**${s.season} ${label}** — ${s.gp ?? 0} GP | ${s.gs ?? 0} GS | ${formatLabeledStat(
           perGame(s.min, gp),
           "MPG",
           1
@@ -292,11 +305,8 @@ function buildPlayerEmbedCareer({ playerData, seasonsData, teamMap, team, thumbn
     embeds: [
       {
         author: {
-          name: authorName,
-          icon_url:
-            player.current_tid === -2 || player.current_tid === -3
-              ? HIGH_SCHOOL_LOGO
-              : authorIcon ?? undefined,
+          name: author.name,
+          icon_url: author.icon,
         },
         title: buildPlayerHeader(player, rating),
         thumbnail: isValidEmbedUrl(thumbnailUrl) ? { url: thumbnailUrl } : undefined,
@@ -323,7 +333,7 @@ function buildPlayerEmbedCareer({ playerData, seasonsData, teamMap, team, thumbn
             ].join(" | "),
           },
           {
-            name: "Season Stats",
+            name: "Career Stats",
             value: seasonLines.length ? seasonLines.join("\n") : "No seasons recorded",
           },
           {
@@ -350,17 +360,13 @@ function buildRatingsLines(current, previous, keys) {
     .filter(Boolean);
 }
 
-function buildPlayerEmbedRatings({ playerData, rawData, team, thumbnailUrl }) {
+function buildPlayerEmbedRatings({ playerData, rawData, team, thumbnailUrl, teamMap, seasonsData }) {
   const { player, rating } = playerData;
   const ratings = rawData.ratings ?? [];
   const current = ratings[ratings.length - 1]?.ratings ?? ratings[ratings.length - 1];
   const previous = ratings[ratings.length - 2]?.ratings ?? ratings[ratings.length - 2];
   const skills = rating?.skills?.length ? rating.skills.join(", ") : "None";
-  const authorIcon = team?.img_url;
-  const authorName =
-    player.current_tid === -2 || player.current_tid === -3
-      ? "High School"
-      : formatTeamLabel(team);
+  const author = resolveDisplayTeam(player, team, teamMap, seasonsData.seasons);
   const physical = buildRatingsLines(current, previous, [
     { key: "hgt", label: "Height" },
     { key: "stre", label: "Strength" },
@@ -387,11 +393,8 @@ function buildPlayerEmbedRatings({ playerData, rawData, team, thumbnailUrl }) {
     embeds: [
       {
         author: {
-          name: authorName,
-          icon_url:
-            player.current_tid === -2 || player.current_tid === -3
-              ? HIGH_SCHOOL_LOGO
-              : authorIcon ?? undefined,
+          name: author.name,
+          icon_url: author.icon,
         },
         title: buildPlayerHeader(player, rating),
         thumbnail: isValidEmbedUrl(thumbnailUrl) ? { url: thumbnailUrl } : undefined,
@@ -600,8 +603,6 @@ const player = {
 export default player;
 
 function buildSeasonClassLabel(player, seasons, season) {
-  if (player.current_tid === -2) return "HS";
-  if (player.current_tid === -3) return "GR";
   if (!player.class_year || !Number.isFinite(player.class_year)) return null;
 
   const entrySeason = player.class_year + 1;
