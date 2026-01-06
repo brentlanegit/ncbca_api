@@ -163,9 +163,9 @@ function buildPlayerEmbedBio({ playerData, team, thumbnailUrl, seasonsData, meta
   const currentSeasonStats = seasonsData?.seasons?.find(
     (season) => season.season === currentSeason && !season.playoffs
   );
-  const bioStats = currentSeasonStats?.stats ?? stats?.stats ?? {};
-  const baseStats = currentSeasonStats ?? stats;
-  const gp = baseStats?.gp ?? 0;
+  const bioStats = currentSeasonStats?.stats ?? {};
+  const baseStats = currentSeasonStats ?? { gp: 0, gs: 0, min: 0 };
+  const gp = baseStats.gp ?? 0;
   const jerseyNumber = bioStats.jerseyNumber ?? player.jersey_number ?? null;
   const shootingSplits = [
     computeSplit(bioStats.fg, bioStats.fga),
