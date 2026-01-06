@@ -6,11 +6,46 @@ const require = createRequire(import.meta.url);
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const facesjs = require("facesjs");
 
+const moduleCandidates = [
+  "facesjs",
+  "facesjs/faceToSvgString",
+  "facesjs/faceToSvgString.js",
+  "facesjs/faceToSvg",
+  "facesjs/faceToSvg.js",
+  "facesjs/dist/faceToSvgString",
+  "facesjs/dist/faceToSvgString.js",
+  "facesjs/dist/faceToSvg",
+  "facesjs/dist/faceToSvg.js",
+];
+
+function resolveFaceToSvgString() {
+  const candidates = [facesjs];
+  for (const path of moduleCandidates) {
+    try {
+      candidates.push(require(path));
+    } catch {
+      // ignore
+    }
+  }
+
+  for (const candidate of candidates) {
+    const fn =
+      candidate?.faceToSvgString ??
+      candidate?.faceToSvg ??
+      candidate?.default?.faceToSvgString ??
+      candidate?.default?.faceToSvg;
+    if (typeof fn === "function") {
+      return fn;
+    }
+  }
+
+  return null;
+}
+
 function renderFaceSvg(face) {
   if (!face || typeof face !== "object") return null;
   try {
-    const faceToSvgString =
-      facesjs?.faceToSvgString ?? facesjs?.faceToSvg ?? facesjs?.default?.faceToSvgString;
+    const faceToSvgString = resolveFaceToSvgString();
     if (typeof faceToSvgString !== "function") {
       throw new Error("facesjs export faceToSvgString not found");
     }
