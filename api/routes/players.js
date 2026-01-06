@@ -43,7 +43,8 @@ export default async function playerRoutes(app) {
         class_year,
         class_year_label,
         college,
-        current_tid
+        current_tid,
+        face
       FROM players
       WHERE pid = $1
       `,
