@@ -217,7 +217,7 @@ function buildPlayerEmbedCareer({ playerData, seasonsData, teamMap }) {
   const { player, rating } = playerData;
   const seasons = seasonsData.seasons.filter((s) => !s.playoffs);
   const totals = sumSeasonStats(seasons);
-  const perGame = perGameTotals(totals);
+  const perGameAverages = perGameTotals(totals);
 
   const seasonLines = seasons
     .slice(0, 10)
@@ -258,11 +258,11 @@ function buildPlayerEmbedCareer({ playerData, seasonsData, teamMap }) {
           {
             name: "Career Per Game",
             value: [
-              formatLabeledStat(perGame.pts, "PPG", 1),
-              formatLabeledStat(perGame.reb, "RPG", 1),
-              formatLabeledStat(perGame.ast, "APG", 1),
-              formatLabeledStat(perGame.stl, "SPG", 1),
-              formatLabeledStat(perGame.blk, "BPG", 1),
+              formatLabeledStat(perGameAverages.pts, "PPG", 1),
+              formatLabeledStat(perGameAverages.reb, "RPG", 1),
+              formatLabeledStat(perGameAverages.ast, "APG", 1),
+              formatLabeledStat(perGameAverages.stl, "SPG", 1),
+              formatLabeledStat(perGameAverages.blk, "BPG", 1),
             ].join(" | "),
           },
           {
