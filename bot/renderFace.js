@@ -12,7 +12,16 @@ function renderFaceSvg(face) {
   try {
     const dom = new JSDOM("<!doctype html><div id=\"face\"></div>");
     const container = dom.window.document.getElementById("face");
+    const previousDocument = globalThis.document;
+    const previousWindow = globalThis.window;
+    const previousNavigator = globalThis.navigator;
+    globalThis.document = dom.window.document;
+    globalThis.window = dom.window;
+    globalThis.navigator = dom.window.navigator;
     display(container, face);
+    globalThis.document = previousDocument;
+    globalThis.window = previousWindow;
+    globalThis.navigator = previousNavigator;
     return container.innerHTML.trim() || null;
   } catch (err) {
     console.warn("Face SVG render failed:", err);
