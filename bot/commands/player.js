@@ -164,8 +164,8 @@ function buildPlayerEmbedBio({ playerData, team, thumbnailUrl, seasonsData, meta
     (season) => season.season === currentSeason && !season.playoffs
   );
   const bioStats = currentSeasonStats?.stats ?? {};
-  const baseStats = currentSeasonStats ?? { gp: 0, gs: 0, min: 0 };
-  const gp = baseStats.gp ?? 0;
+  const baseStats = currentSeasonStats ?? null;
+  const gp = baseStats?.gp ?? null;
   const jerseyNumber = bioStats.jerseyNumber ?? player.jersey_number ?? null;
   const shootingSplits = [
     computeSplit(bioStats.fg, bioStats.fga),
