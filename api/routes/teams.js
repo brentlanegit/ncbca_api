@@ -92,6 +92,7 @@ export default async function teamRoutes(app) {
         p.img_url,
         p.injury,
         p.class_year,
+        p.class_year_label,
         pr.pos,
         pr.ovr,
         pr.pot,

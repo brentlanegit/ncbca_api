@@ -18,4 +18,24 @@ export default async function metaRoutes(app) {
       divisions: divs.rows,
     };
   });
+
+  app.get("/exports", async () => {
+    const res = await q(
+      `
+      SELECT
+        e.id,
+        e.created_at,
+        e.season,
+        e.file_name,
+        e.is_active,
+        lm.phase,
+        lm.starting_season
+      FROM exports e
+      LEFT JOIN league_meta lm ON lm.export_id = e.id
+      ORDER BY e.created_at DESC
+      `
+    );
+
+    return { exports: res.rows };
+  });
 }

@@ -31,6 +31,26 @@ export async function upsertGames(client, games) {
         console.warn(
           `[GID COLLISION] gid=${gid} already exists in DB as season=${ex.season} (${ex.home_tid} vs ${ex.away_tid}), incoming season=${season} (${homeTid} vs ${awayTid}). Skipping incoming game to preserve archive.`
         );
+
+        await client.query(
+          `
+          INSERT INTO gid_conflicts
+            (gid, existing_season, existing_home_tid, existing_away_tid, incoming_season, incoming_home_tid, incoming_away_tid, existing_game, incoming_game)
+          VALUES
+            ($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9::jsonb)
+          `,
+          [
+            gid,
+            ex.season,
+            ex.home_tid,
+            ex.away_tid,
+            season,
+            homeTid,
+            awayTid,
+            JSON.stringify(ex),
+            JSON.stringify(g),
+          ]
+        );
       }
 
       // Archive behavior: never overwrite an existing gid
