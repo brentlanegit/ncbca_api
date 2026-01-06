@@ -1,16 +1,14 @@
-import { importLeagueFromFile } from "./importLeague.js";
+import { loadExportFromFile, persistRawExport } from "./loadExport.js";
+import { withTransaction } from "./db.js";
+import { createExportRow, setActiveExport } from "./upsertExport.js";
+import { upsertLeagueMeta, upsertConfsDivs } from "./upsertLeagueMeta.js";
+import { upsertTeams, upsertTeamSeasons, upsertTeamStats } from "./upsertTeams.js";
+import { upsertPlayers, upsertPlayerRatings, upsertPlayerStats, upsertPlayerAwards } from "./upsertPlayers.js";
+import { upsertSchedule } from "./upsertSchedule.js";
+import { upsertGames } from "./upsertGames.js";
+import { ensureSpecialTeams } from "./ensureSpecialTeams.js";
 
-function usage() {
-  console.log("Usage: npm run import:local -- <path-to-export.json>");
-}
-
-async function main() {
-  const filePath = process.argv[2];
-  if (!filePath) {
-    usage();
-    process.exit(1);
-  }
-
+export async function importLeagueFromFile(filePath) {
   const { raw, hash, json } = loadExportFromFile(filePath);
   const { storageKey, fileName } = persistRawExport({ raw, hash });
 
@@ -66,11 +64,5 @@ async function main() {
     };
   });
 
-  console.log("✅ Import complete:");
-  console.log(summary);
+  return summary;
 }
-
-main().catch((err) => {
-  console.error("❌ Import failed:", err);
-  process.exit(1);
-});
