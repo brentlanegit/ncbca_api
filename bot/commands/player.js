@@ -136,6 +136,10 @@ function buildPlayerEmbedBio({ playerData, team, thumbnailUrl, seasonsData, meta
       : formatTeamLabel(team);
 
   const currentSeason = metaData?.meta?.season ?? null;
+  const age =
+    typeof player.born_year === "number" && typeof currentSeason === "number"
+      ? currentSeason - player.born_year
+      : null;
   const currentSeasonStats = seasonsData?.seasons?.find(
     (season) => season.season === currentSeason && !season.playoffs
   );
@@ -169,6 +173,7 @@ function buildPlayerEmbedBio({ playerData, team, thumbnailUrl, seasonsData, meta
               `Height: ${formatHeight(player.hgt_in)}`,
               `Weight: ${formatWeight(player.weight_lbs)}`,
               `Born: ${player.born_year ?? "Unknown"} (${player.born_loc ?? "Unknown"})`,
+              `Age: ${age ?? "Unknown"}`,
               `College: ${player.college ?? "Unknown"}`,
               `HS Grad Year: ${player.class_year ?? "Unknown"}`,
               `Injury: ${formatInjury(player.injury)}`,
@@ -205,7 +210,13 @@ function buildPlayerEmbedBio({ playerData, team, thumbnailUrl, seasonsData, meta
             name: "Advanced",
             value: [
               formatLabeledStat(bioStats.per, "PER", 1),
-              formatLabeledStat(bioStats.bpm, "BPM", 1),
+              formatLabeledStat(
+                bioStats.obpm != null && bioStats.dbpm != null
+                  ? bioStats.obpm + bioStats.dbpm
+                  : null,
+                "BPM",
+                1
+              ),
               formatLabeledStat(bioStats.obpm, "OBPM", 1),
               formatLabeledStat(bioStats.dbpm, "DBPM", 1),
               formatLabeledStat(bioStats.ows, "OWS", 1),
@@ -256,23 +267,21 @@ function buildPlayerEmbedCareer({ playerData, seasonsData, teamMap, team, thumbn
       const classLabel = buildSeasonClassLabel(player, seasonsData.seasons, s.season);
       const gp = s.gp ?? 0;
       const label = classLabel ? `${teamLabel} ${classLabel}` : teamLabel;
-      return `${s.season} ${label} — ${s.gp ?? 0} GP | ${s.gs ?? 0} GS | ${formatLabeledStat(
-        perGame(s.min, gp),
-        "MPG",
-        1
-      )} ${formatLabeledStat(perGame(s.pts, gp), "PPG", 1)} | ${formatLabeledStat(
-        perGame((s.orb ?? 0) + (s.drb ?? 0), gp),
-        "RPG",
-        1
-      )} | ${formatLabeledStat(perGame(s.ast, gp), "APG", 1)} | ${formatLabeledStat(
-        perGame(s.stl, gp),
-        "SPG",
-        1
-      )} | ${formatLabeledStat(perGame(s.blk, gp), "BPG", 1)} | ${formatLabeledStat(
-        perGame(s.tov, gp),
-        "TOPG",
-        1
-      )}`;
+      return [
+        `${s.season} ${label} — ${s.gp ?? 0} GP | ${s.gs ?? 0} GS | ${formatLabeledStat(
+          perGame(s.min, gp),
+          "MPG",
+          1
+        )}`,
+        [
+          formatLabeledStat(perGame(s.pts, gp), "PPG", 1),
+          formatLabeledStat(perGame((s.orb ?? 0) + (s.drb ?? 0), gp), "RPG", 1),
+          formatLabeledStat(perGame(s.ast, gp), "APG", 1),
+          formatLabeledStat(perGame(s.stl, gp), "SPG", 1),
+          formatLabeledStat(perGame(s.blk, gp), "BPG", 1),
+          formatLabeledStat(perGame(s.tov, gp), "TOPG", 1),
+        ].join(" | "),
+      ].join("\n");
     });
 
   const awards = playerData.awards?.length
