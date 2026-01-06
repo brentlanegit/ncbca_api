@@ -41,6 +41,16 @@ function formatTeamLabel(team) {
   return `${team.region} ${team.name}`;
 }
 
+function isValidEmbedUrl(url) {
+  if (typeof url !== "string" || !url.trim()) return false;
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === "http:" || parsed.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
 function formatStatValue(value, digits = 1) {
   if (value == null || Number.isNaN(Number(value))) return "N/A";
   return Number(value).toFixed(digits);
@@ -139,7 +149,7 @@ function buildPlayerEmbedBio({ playerData, team }) {
               : authorIcon ?? undefined,
         },
         title: buildPlayerHeader(player, rating),
-        thumbnail: faceUrl ? { url: faceUrl } : undefined,
+        thumbnail: isValidEmbedUrl(faceUrl) ? { url: faceUrl } : undefined,
         fields: [
           {
             name: "Bio",
@@ -385,6 +395,16 @@ const player = {
     await interaction.deferReply({ ephemeral: false });
 
     try {
+      if (/^\d+$/.test(nameInput)) {
+        try {
+          const message = await buildPlayerMessage(apiBaseUrl, Number(nameInput), "bio");
+          await interaction.editReply(message);
+          return;
+        } catch (err) {
+          console.error("Direct PID lookup failed:", err);
+        }
+      }
+
       const matches = await apiGet(apiBaseUrl, `/api/players/search?q=${encodeURIComponent(nameInput)}`);
       if (!matches.length) {
         await interaction.editReply("No players found.");
