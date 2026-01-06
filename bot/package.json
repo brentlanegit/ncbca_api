@@ -1,0 +1,13 @@
+{
+  "name": "ncbca-bot",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node index.js",
+    "register": "node register.js"
+  },
+  "dependencies": {
+    "discord.js": "^14.22.1",
+    "sharp": "^0.34.3"
+  }
+}
