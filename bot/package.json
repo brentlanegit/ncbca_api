@@ -3,8 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "node index.js",
-    "register": "node register.js"
+    "dev": "node index.js"
   },
   "dependencies": {
     "discord.js": "^14.22.1"
