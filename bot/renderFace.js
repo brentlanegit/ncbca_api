@@ -1,19 +1,9 @@
-import sharp from "sharp";
-import { createRequire } from "node:module";
-
-const require = createRequire(import.meta.url);
-// facesjs is CommonJS in some environments; require ensures we can access its exports reliably.
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const facesjs = require("facesjs");
+import { faceToSvgString } from "facesjs";
+import { Resvg } from "@resvg/resvg-js";
 
 function renderFaceSvg(face) {
   if (!face || typeof face !== "object") return null;
   try {
-    const faceToSvgString =
-      facesjs?.faceToSvgString ?? facesjs?.faceToSvg ?? facesjs?.default?.faceToSvgString;
-    if (typeof faceToSvgString !== "function") {
-      throw new Error("facesjs export faceToSvgString not found");
-    }
     return faceToSvgString(face);
   } catch (err) {
     console.warn("Face SVG render failed:", err);
@@ -21,12 +11,34 @@ function renderFaceSvg(face) {
   }
 }
 
+function parseMaybeJson(value) {
+  if (!value) return null;
+  if (typeof value === "object") return value;
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    try {
+      return JSON.parse(trimmed);
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
+function svgToPngBuffer(svgString, width = 256) {
+  const resvg = new Resvg(svgString, { fitTo: { mode: "width", value: width } });
+  const pngData = resvg.render().asPng();
+  return Buffer.from(pngData);
+}
+
 export async function renderFacePngAttachment(face) {
-  const svg = renderFaceSvg(face);
+  const faceObj = parseMaybeJson(face);
+  const svg = renderFaceSvg(faceObj);
   if (!svg) return null;
 
   try {
-    const buffer = await sharp(Buffer.from(svg)).png().toBuffer();
+    const buffer = svgToPngBuffer(svg, 256);
     return { attachment: buffer, name: "face.png" };
   } catch (err) {
     console.warn("Face render failed, skipping thumbnail:", err);
