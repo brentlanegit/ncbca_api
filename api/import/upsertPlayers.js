@@ -2,7 +2,57 @@ function safeInt(x) {
   return typeof x === "number" ? x : null;
 }
 
-export async function upsertPlayers(client, players) {
+function mapClassIndexToLabel(classIndex) {
+  if (classIndex <= 0) return "FR";
+  if (classIndex === 1) return "SO";
+  if (classIndex === 2) return "JR";
+  return "SR";
+}
+
+function countPriorSeasonsWithStats(stats, currentSeason) {
+  const seasons = new Set();
+  for (const s of stats) {
+    if (!s || s.playoffs) continue;
+    if (typeof s.season !== "number" || s.season >= currentSeason) continue;
+    if (typeof s.gp !== "number" || s.gp <= 0) continue;
+    seasons.add(s.season);
+  }
+  return seasons.size;
+}
+
+function hasStatsInSeason(stats, season) {
+  for (const s of stats) {
+    if (!s || s.playoffs) continue;
+    if (s.season !== season) continue;
+    if (typeof s.gp === "number" && s.gp > 0) return true;
+  }
+  return false;
+}
+
+function calcClassYearLabel(player, currentSeason) {
+  const tid = typeof player.tid === "number" ? player.tid : null;
+  if (tid === -2) return "HS";
+  if (tid === -3) return "GR";
+
+  if (typeof currentSeason !== "number") return null;
+
+  const stats = Array.isArray(player.stats) ? player.stats : [];
+  const draftYear = safeInt(player?.draft?.year);
+
+  if (draftYear != null) {
+    const entrySeason = draftYear + 1;
+    const seasonsElapsed = Math.max(0, currentSeason - entrySeason);
+    const redshirt = entrySeason <= currentSeason && !hasStatsInSeason(stats, entrySeason);
+    const classIndex = Math.max(0, seasonsElapsed - (redshirt ? 1 : 0));
+    const label = mapClassIndexToLabel(classIndex);
+    return redshirt ? `RS ${label}` : label;
+  }
+
+  const classIndex = countPriorSeasonsWithStats(stats, currentSeason);
+  return mapClassIndexToLabel(classIndex);
+}
+
+export async function upsertPlayers(client, players, currentSeason) {
   for (const p of players) {
     if (typeof p.pid !== "number") {
       throw new Error(
@@ -11,13 +61,14 @@ export async function upsertPlayers(client, players) {
     }
 
     const classYear = safeInt(p?.draft?.year);
+    const classYearLabel = calcClassYearLabel(p, currentSeason);
 
     await client.query(
       `
       INSERT INTO players
-        (pid, first_name, last_name, born_year, born_loc, hgt_in, weight_lbs, img_url, injury, class_year, college, face, current_tid, updated_at)
+        (pid, first_name, last_name, born_year, born_loc, hgt_in, weight_lbs, img_url, injury, class_year, class_year_label, college, face, current_tid, updated_at)
       VALUES
-        ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10,$11,$12::jsonb,$13, now())
+        ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10,$11,$12,$13::jsonb,$14, now())
       ON CONFLICT (pid) DO UPDATE SET
         first_name=EXCLUDED.first_name,
         last_name=EXCLUDED.last_name,
@@ -27,6 +78,7 @@ export async function upsertPlayers(client, players) {
         img_url=EXCLUDED.img_url,
         injury=EXCLUDED.injury,
         class_year=EXCLUDED.class_year,
+        class_year_label=EXCLUDED.class_year_label,
         face=EXCLUDED.face,
         weight_lbs=EXCLUDED.weight_lbs,
         college=EXCLUDED.college,
@@ -44,6 +96,7 @@ export async function upsertPlayers(client, players) {
         p.imgURL ?? null,
         JSON.stringify(p.injury ?? null),
         classYear,
+        classYearLabel,
         p.college ?? null,
         JSON.stringify(p.face ?? null),
         // IMPORTANT: this is the true "current status" tid from the export (-3 alumni, -2 HS, -1 portal, >=0 active)

@@ -48,7 +48,7 @@ async function main() {
     await upsertTeamStats(client, json.teams, currentSeason);
 
     // 4) players (latest bio always updated)
-    await upsertPlayers(client, json.players);
+    await upsertPlayers(client, json.players, currentSeason);
 
     // Archive mode: update ONLY current season ratings/stats, preserve past seasons
     await upsertPlayerRatings(client, json.players, currentSeason);
