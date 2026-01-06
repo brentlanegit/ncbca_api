@@ -1,5 +1,10 @@
-import { faceToSvgString } from "facesjs";
 import { Resvg } from "@resvg/resvg-js";
+import { createRequire } from "node:module";
+
+const require = createRequire(import.meta.url);
+// facesjs is CommonJS in Node; require ensures we access its named exports.
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { faceToSvgString } = require("facesjs");
 
 function renderFaceSvg(face) {
   if (!face || typeof face !== "object") return null;
