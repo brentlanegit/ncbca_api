@@ -155,7 +155,8 @@ function buildPlayerEmbedBio({ playerData, team, thumbnailUrl, seasonsData, meta
   const { player, rating, stats } = playerData;
   const author = resolveDisplayTeam(player, team, teamMap, seasonsData.seasons);
 
-  const currentSeason = metaData?.season ?? null;
+  const currentSeasonValue = Number(metaData?.season);
+  const currentSeason = Number.isFinite(currentSeasonValue) ? currentSeasonValue : null;
   const age =
     typeof player.born_year === "number" && typeof currentSeason === "number"
       ? currentSeason - player.born_year
@@ -163,9 +164,15 @@ function buildPlayerEmbedBio({ playerData, team, thumbnailUrl, seasonsData, meta
   const currentSeasonStats = seasonsData?.seasons?.find(
     (season) => season.season === currentSeason && !season.playoffs
   );
-  const bioStats = currentSeasonStats?.stats ?? {};
-  const baseStats = currentSeasonStats ?? { gp: 0, gs: 0, min: 0 };
-  const gp = baseStats.gp ?? 0;
+  const statsSeason = Number(stats?.season);
+  const statsMatchCurrent =
+    Number.isFinite(currentSeason) &&
+    Number.isFinite(statsSeason) &&
+    statsSeason === currentSeason &&
+    !stats?.playoffs;
+  const bioStats = (statsMatchCurrent ? stats?.stats : null) ?? {};
+  const baseStats = statsMatchCurrent ? stats : currentSeasonStats ?? null;
+  const gp = baseStats?.gp ?? null;
   const jerseyNumber = bioStats.jerseyNumber ?? player.jersey_number ?? null;
   const shootingSplits = [
     computeSplit(bioStats.fg, bioStats.fga),
